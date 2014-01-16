@@ -1,0 +1,16 @@
+# save this file as /usr/local/etc/udplogreceiver.ini
+[server01]
+port=5141
+logfile=/var/log/serverlogs/server01.log
+[server02]
+port=5142
+logfile=/var/log/serverlogs/server02.log
+[server03]
+port=5143
+logfile=/var/log/serverlogs/server03.log
+[server04]
+port=5144
+logfile=/var/log/serverlogs/server04.log
+[server05]
+port=5145
+logfile=/var/log/serverlogs/server05.log

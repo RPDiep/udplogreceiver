@@ -1,0 +1,96 @@
+#!/usr/bin/python
+
+configfile='/usr/local/etc/udplogreceiver.ini'
+
+import ConfigParser
+import select
+import signal
+import socket
+import sys
+import threading
+import time
+
+class udplogreceiver(threading.Thread):
+  def __init__(self, name, port, logfile):
+    threading.Thread.__init__(self)
+    self.name = name
+    self.port = port
+    self.logfile = logfile
+
+  def run(self):
+    self.log = open(self.logfile,"a")
+    self.sock = socket.socket( socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP )
+    self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    self.sock.bind( ('',self.port) )
+    self.sock.setblocking(0)
+
+    while True:
+      result = select.select( [self.sock], [], [] )
+      msg = result[0][0].recv( 8196 )
+      self.log.write(msg)
+      self.log.flush()
+
+  def stop(self):
+    self.log.close()
+    self.sock.close()
+
+  def reload(self):
+    self.log.close()
+    self.log = open(self.logfile,"a")
+
+def reload(*args):
+  print "\nSIGHUP received, reloading\n"
+  for thread in threads:
+    thread.reload()
+
+def cleanupandexit(signum,*args):
+  if signum == 2:
+    print "\nSIGINT received, exiting\n"
+  elif signum == 15:
+    print "\nSIGTERM received, exiting\n"
+  else:
+    print "Exiting"
+  for thread in threads:
+    thread.stop()
+  sys.exit(0)
+
+def main():
+  parser = ConfigParser.SafeConfigParser()
+  parser.read(configfile)
+  sections = parser.sections()
+  if len(sections) == 0:
+    sys.stderr.write("Configfile %s does not exist or is empty\n" % configfile)
+    sys.exit(1)
+
+  global threads
+  threads = []
+  for section in parser.sections():
+    try:
+      port = int(parser.get(section,'port'))
+    except ConfigParser.NoOptionError:
+      sys.stderr.write("Port not set for section %s\n" % section)
+      sys.exit(2)
+    try:
+      logfile = parser.get(section,'logfile')
+    except ConfigParser.NoOptionError:
+      sys.stderr.write("Logfile option not set for section %s\n" % section)
+      sys.exit(3)
+    thread = udplogreceiver(section, port, logfile)
+    thread.daemon = True
+    threads.append(thread)
+
+  for thread in threads:
+    thread.start()
+
+  while True:
+    try:
+      pass
+      time.sleep(1)
+    except KeyboardInterrupt:
+      cleanupandexit(2)
+
+signal.signal(signal.SIGHUP,reload)
+signal.signal(signal.SIGTERM,cleanupandexit)
+signal.signal(signal.SIGINT,cleanupandexit)
+main()
